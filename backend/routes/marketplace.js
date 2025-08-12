@@ -3,64 +3,165 @@ const router = express.Router();
 const MarketListing = require('../models/MarketListing');
 const Card = require('../models/Card');
 const User = require('../models/User');
+const mongoose = require('mongoose');
+
+// Constants
+const MIN_PRICE = 1;
+const MAX_PRICE = 1000000;
+
+// Error handler
+const handleError = (res, status, message) => {
+  return res.status(status).json({
+    success: false,
+    message,
+    timestamp: new Date().toISOString()
+  });
+};
 
 // List a card for sale
 router.post('/list', async (req, res) => {
-  const { userId, cardId, price } = req.body;
+  try {
+    const { userId, cardId, price } = req.body;
 
-  const card = await Card.findOne({ _id: cardId, owner: userId });
-  if (!card) return res.status(404).json({ message: 'Card not found or not owned' });
+    // Validate price
+    if (!price || price < MIN_PRICE || price > MAX_PRICE) {
+      return handleError(res, 400, `Price must be between ${MIN_PRICE} and ${MAX_PRICE}`);
+    }
 
-  const existing = await MarketListing.findOne({ cardId });
-  if (existing) return res.status(400).json({ message: 'Card already listed' });
+    const card = await Card.findOne({ _id: cardId, owner: userId });
+    if (!card) {
+      return handleError(res, 404, 'Card not found or not owned');
+    }
 
-  const listing = await MarketListing.create({
-    seller: userId,
-    cardId,
-    price
-  });
+    const existing = await MarketListing.findOne({ cardId, status: 'active' });
+    if (existing) {
+      return handleError(res, 400, 'Card already listed');
+    }
 
-  res.json({ message: 'Card listed', listing });
+    const listing = new MarketListing({
+      seller: userId,
+      cardId,
+      price,
+      createdAt: new Date()
+    });
+
+    await listing.save();
+
+    res.json({
+      success: true,
+      message: 'Card listed successfully',
+      data: {
+        listingId: listing._id,
+        price: listing.price,
+        timestamp: listing.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('[Marketplace List Error]:', error);
+    return handleError(res, 500, 'Error creating listing');
+  }
 });
 
-// Get all listings
+// Get all listings with filters and pagination
 router.get('/listings', async (req, res) => {
-  const listings = await MarketListing.find()
-    .populate('cardId')
-    .populate('seller', 'username');
+  try {
+    const { page = 1, limit = 20, minPrice, maxPrice, type } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-  res.json(listings);
+    // Build filter
+    const filter = { status: 'active' };
+    if (minPrice) filter.price = { $gte: parseInt(minPrice) };
+    if (maxPrice) filter.price = { ...filter.price, $lte: parseInt(maxPrice) };
+
+    const [listings, total] = await Promise.all([
+      MarketListing.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate('cardId')
+        .populate('seller', 'username'),
+      MarketListing.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: listings,
+      pagination: {
+        page: parseInt(page),
+        pageSize: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('[Marketplace List Error]:', error);
+    return handleError(res, 500, 'Error fetching listings');
+  }
 });
 
 // Buy a card
 router.post('/buy', async (req, res) => {
-  const { userId, listingId } = req.body;
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  const listing = await MarketListing.findById(listingId).populate('cardId');
-  if (!listing) return res.status(404).json({ message: 'Listing not found' });
+  try {
+    const { userId, listingId } = req.body;
 
-  const buyer = await User.findById(userId);
-  const seller = await User.findById(listing.seller);
+    const listing = await MarketListing.findById(listingId)
+      .populate('cardId')
+      .session(session);
 
-  if (buyer.tokens < listing.price) {
-    return res.status(400).json({ message: 'Not enough tokens' });
+    if (!listing || listing.status !== 'active') {
+      await session.abortTransaction();
+      return handleError(res, 404, 'Listing not found or inactive');
+    }
+
+    const [buyer, seller] = await Promise.all([
+      User.findById(userId).session(session),
+      User.findById(listing.seller).session(session)
+    ]);
+
+    if (buyer.tokens < listing.price) {
+      await session.abortTransaction();
+      return handleError(res, 400, 'Insufficient tokens');
+    }
+
+    // Process transaction
+    buyer.tokens -= listing.price;
+    seller.tokens += listing.price;
+    listing.status = 'sold';
+    listing.buyer = userId;
+    listing.soldAt = new Date();
+
+    const card = await Card.findById(listing.cardId._id).session(session);
+    card.owner = userId;
+
+    // Save all changes
+    await Promise.all([
+      buyer.save({ session }),
+      seller.save({ session }),
+      listing.save({ session }),
+      card.save({ session })
+    ]);
+
+    await session.commitTransaction();
+
+    res.json({
+      success: true,
+      message: 'Purchase successful',
+      data: {
+        cardId: card._id,
+        price: listing.price,
+        timestamp: listing.soldAt
+      }
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('[Marketplace Buy Error]:', error);
+    return handleError(res, 500, 'Error processing purchase');
+  } finally {
+    session.endSession();
   }
-
-  // Transfer token
-  buyer.tokens -= listing.price;
-  seller.tokens += listing.price;
-  await buyer.save();
-  await seller.save();
-
-  // Transfer card ownership
-  const card = await Card.findById(listing.cardId._id);
-  card.owner = userId;
-  await card.save();
-
-  // Remove listing
-  await MarketListing.findByIdAndDelete(listingId);
-
-  res.json({ message: 'Purchase successful', newOwner: userId });
 });
 
 module.exports = router;

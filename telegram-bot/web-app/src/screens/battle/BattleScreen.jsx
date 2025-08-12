@@ -1,78 +1,171 @@
-const [hand, setHand] = useState([]);
-const [mana, setMana] = useState(1);
+import React, { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import StatusPanel from '../components/StatusPanel';
+import CardSlot from '../components/CardSlot';
 
-useEffect(() => {
-  socket.emit('joinBattle', { userId: user?.id, deck });
+const BattleContainer = styled.div`
+  min-height: 100vh;
+  background: #111827;
+  color: white;
+  padding: 1rem;
+`;
 
-  socket.on('battleReady', ({ hand, yourHp, enemyHp, mana }) => {
-    setHand(hand);
-    setYourHp(yourHp);
-    setEnemyHp(enemyHp);
-    setMana(mana);
+const StatusContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 1rem;
+  margin-top: 1rem;
+`;
+
+const HandContainer = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+`;
+
+const GameOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+`;
+
+const GameResult = styled.h1`
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 1rem;
+`;
+
+const Button = styled.button`
+  background: #2563eb;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+  }
+`;
+
+const BattleScreen = ({ user, deck, socket }) => {
+  const [battleState, setBattleState] = useState({
+    hand: [],
+    yourHp: 100,
+    enemyHp: 100,
+    mana: 1,
+    enemyName: 'AI Opponent',
+    matchEnded: false,
+    matchResult: null
   });
-}, []);
 
-<div className="flex gap-2 mt-4 justify-center">
-  {hand.map((card, index) => (
-    <CardSlot
-      key={index}
-      card={card}
-      onPlay={(card) => handleCardPlay(card, index)}
-    />
-  ))}
-</div>
+  useEffect(() => {
+    // Initialize battle
+    socket.emit('joinBattle', { userId: user?.id, deck });
 
-const handleCardPlay = (card, index) => {
-  socket.emit('playCard', { card });
-  const newHand = [...hand];
-  newHand.splice(index, 1); // remove card from hand
-  setHand(newHand);
+    // Battle event handlers
+    const eventHandlers = {
+      battleReady: ({ hand, yourHp, enemyHp, mana }) => {
+        setBattleState(prev => ({
+          ...prev,
+          hand,
+          yourHp,
+          enemyHp,
+          mana
+        }));
+      },
+
+      enemyMove: ({ card, damage, yourHp }) => {
+        setBattleState(prev => ({
+          ...prev,
+          yourHp
+        }));
+        console.log(`Enemy played ${card.name}, hit you for ${damage}`);
+      },
+
+      matchEnd: ({ result }) => {
+        setBattleState(prev => ({
+          ...prev,
+          matchEnded: true,
+          matchResult: result
+        }));
+      }
+    };
+
+    // Register event listeners
+    Object.entries(eventHandlers).forEach(([event, handler]) => {
+      socket.on(event, handler);
+    });
+
+    // Cleanup
+    return () => {
+      Object.keys(eventHandlers).forEach(event => {
+        socket.off(event);
+      });
+    };
+  }, [socket, user, deck]);
+
+  const handleCardPlay = (card, index) => {
+    socket.emit('playCard', { card });
+    setBattleState(prev => ({
+      ...prev,
+      hand: prev.hand.filter((_, i) => i !== index)
+    }));
+  };
+
+  const { 
+    hand, yourHp, enemyHp, mana, 
+    enemyName, matchEnded, matchResult 
+  } = battleState;
+
+  return (
+    <BattleContainer>
+      <StatusContainer>
+        <StatusPanel 
+          isPlayer={true} 
+          name={user?.username} 
+          hp={yourHp} 
+          mana={mana} 
+        />
+        <StatusPanel 
+          isPlayer={false} 
+          name={enemyName} 
+          hp={enemyHp} 
+        />
+      </StatusContainer>
+
+      <HandContainer>
+        {hand.map((card, index) => (
+          <CardSlot
+            key={index}
+            card={card}
+            onPlay={(card) => handleCardPlay(card, index)}
+          />
+        ))}
+      </HandContainer>
+
+      {matchEnded && (
+        <GameOverlay>
+          <GameResult>
+            {matchResult === 'win' ? '🎉 You Win!' : '😞 You Lose'}
+          </GameResult>
+          <Button onClick={() => window.location.reload()}>
+            Return to Lobby
+          </Button>
+        </GameOverlay>
+      )}
+    </BattleContainer>
+  );
 };
 
-
-const [matchEnded, setMatchEnded] = useState(false);
-const [matchResult, setMatchResult] = useState(null);
-
-useEffect(() => {
-
-  socket.on('matchEnd', ({ result }) => {
-    setMatchEnded(true);
-    setMatchResult(result); // 'win' or 'lose'
-  });
-}, []);
-
-{matchEnded && (
-  <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-50">
-    <h1 className="text-4xl mb-4 text-white font-bold">
-      {matchResult === 'win' ? '🎉 You Win!' : '😞 You Lose'}
-    </h1>
-    <button
-      onClick={() => window.location.reload()}
-      className="bg-blue-600 text-white px-4 py-2 rounded-md"
-    >
-      Return to Lobby
-    </button>
-  </div>
-)}
-
-
-useEffect(() => {
-  socket.on('enemyMove', ({ card, damage, yourHp }) => {
-    setYourHp(yourHp);
-    console.log(`Enemy played ${card.name}, hit you for ${damage}`);
-  });
-
-  return () => socket.off('enemyMove'); // clean up
-}, []);
-
-import PlayerInfo from '../components/PlayerInfo';
-import EnemyInfo from '../components/EnemyInfo';
-
-
-<><PlayerInfo username={user?.username} hp={yourHp} mana={mana} /><EnemyInfo name="AI Opponent" hp={enemyHp} /></>
-import StatusPanel from '../components/StatusPanel';
-
-<div className="flex justify-between w-full px-4 mt-4">
-  <StatusPanel isPlayer={true} name={user?.username} hp={yourHp} mana={mana} />
-  <StatusPanel isPlayer={false} name={enemyName} hp={enemyHp} />
-</div>
+export default BattleScreen;

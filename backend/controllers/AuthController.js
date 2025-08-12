@@ -1,12 +1,16 @@
-const User = require('../models/User'); // Make sure User.js exists
+const User = require('../models/User');
 
-// Register or return existing Telegram user
 exports.registerTelegramUser = async (req, res) => {
   try {
     const { id, username, first_name, last_name, photo_url } = req.body;
 
-    if (!id) {
-      return res.status(400).json({ error: 'Telegram ID is required' });
+    // Enhanced input validation
+    if (!id || typeof id !== 'number') {
+      return res.status(400).json({ error: 'Valid Telegram ID is required' });
+    }
+
+    if (username && typeof username !== 'string') {
+      return res.status(400).json({ error: 'Username must be a string' });
     }
 
     // Check if user already exists
@@ -28,10 +32,35 @@ exports.registerTelegramUser = async (req, res) => {
       await user.save();
     }
 
-    return res.status(200).json({ message: 'User registered', user });
+    return res.status(200).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
+        userId: user._id,
+        telegramId: user.telegramId,
+        username: user.username,
+        gold: user.gold
+      }
+    });
 
   } catch (error) {
     console.error('[AuthController] Error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ error: 'Invalid user data' });
+    }
+    
+    if (error.name === 'MongoError' && error.code === 11000) {
+      return res.status(409).json({ error: 'User already exists' });
+    }
+
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
+};
+
+exports.validateTelegramData = (data) => {
+  // ...existing code...
 };
