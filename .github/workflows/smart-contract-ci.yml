@@ -1,0 +1,43 @@
+name: Smart Contract CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'blockchain/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'blockchain/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16.x'
+        cache: 'npm'
+        cache-dependency-path: blockchain/package-lock.json
+        
+    - name: Install dependencies
+      run: cd blockchain && npm ci
+      
+    - name: Run Hardhat tests
+      run: cd blockchain && npx hardhat test
+      
+    - name: Run gas optimization tests
+      run: cd blockchain && npx hardhat test test/GasOptimization.test.js
+      
+    - name: Run solidity coverage
+      run: cd blockchain && npx hardhat coverage
+      
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        directory: ./blockchain/coverage
+        flags: smart-contracts

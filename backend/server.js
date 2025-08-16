@@ -1,31 +1,34 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
-const socketIO = require('socket.io');
 const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const mongoose = require('mongoose');
-require('dotenv').config();
+
+const config = require('./config');
+const { errorHandler } = require('./middleware/errorHandler');
+const setupSocket = require('./socket');
 
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO setup with better error handling
-const io = socketIO(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['GET', 'POST']
-  },
-  pingTimeout: 60000,
-  connectTimeout: 10000
-});
-
-// Enhanced middleware
+// Security middleware
+app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: config.frontendUrl,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+app.use(rateLimit(config.rateLimit));
+
+// General middleware
+app.use(morgan('dev'));
+app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
