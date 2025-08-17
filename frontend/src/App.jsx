@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 
 // Pages
@@ -72,94 +72,96 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <Navbar user={currentUser} setUser={setCurrentUser} />
-        
-        <main className="container mx-auto px-4 py-8">
-          <Routes>
-            {/* Public Routes */}
-            <Route 
-              path="/" 
-              element={<DashboardScreen user={currentUser} />} 
-            />
-            <Route 
-              path="/login" 
-              element={<LoginScreen setUser={setCurrentUser} />} 
-            />
-            <Route 
-              path="/register" 
-              element={<RegisterScreen setUser={setCurrentUser} />} 
-            />
-            <Route 
-              path="/league" 
-              element={<LeagueLeaderboard />} 
-            />
-            <Route 
-              path="/spectate/:matchId" 
-              element={<SpectatorScreen />} 
-            />
+    <AuthProvider>
+      <BrowserRouter>
+        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+          <Navbar user={currentUser} setUser={setCurrentUser} />
+          
+          <main className="container mx-auto px-4 py-8">
+            <Routes>
+              {/* Public Routes */}
+              <Route 
+                path="/" 
+                element={<DashboardScreen user={currentUser} />} 
+              />
+              <Route 
+                path="/login" 
+                element={<LoginScreen setUser={setCurrentUser} />} 
+              />
+              <Route 
+                path="/register" 
+                element={<RegisterScreen setUser={setCurrentUser} />} 
+              />
+              <Route 
+                path="/league" 
+                element={<LeagueLeaderboard />} 
+              />
+              <Route 
+                path="/spectate/:matchId" 
+                element={<SpectatorScreen />} 
+              />
 
-            {/* Protected Routes */}
-            <Route
-              path="/deck"
-              element={
-                <PrivateRoute user={currentUser}>
-                  <DeckBuilderScreen userId={currentUser?._id} />
-                </PrivateRoute>
-              }
-            />
+              {/* Protected Routes */}
+              <Route
+                path="/deck"
+                element={
+                  <PrivateRoute user={currentUser}>
+                    <DeckBuilderScreen userId={currentUser?._id} />
+                  </PrivateRoute>
+                }
+              />
 
-            <Route
-              path="/battle"
-              element={
-                <PrivateRoute user={currentUser}>
-                  <BattleScreen userId={currentUser?._id} />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/battle"
+                element={
+                  <PrivateRoute user={currentUser}>
+                    <BattleScreen userId={currentUser?._id} />
+                  </PrivateRoute>
+                }
+              />
 
-            <Route
-              path="/marketplace"
-              element={
-                <PrivateRoute user={currentUser}>
-                  <MarketplaceScreen userId={currentUser?._id} />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/marketplace"
+                element={
+                  <PrivateRoute user={currentUser}>
+                    <MarketplaceScreen userId={currentUser?._id} />
+                  </PrivateRoute>
+                }
+              />
 
-            <Route
-              path="/tournament"
-              element={
-                <PrivateRoute user={currentUser}>
-                  <TournamentScreen userId={currentUser?._id} />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/tournament"
+                element={
+                  <PrivateRoute user={currentUser}>
+                    <TournamentScreen userId={currentUser?._id} />
+                  </PrivateRoute>
+                }
+              />
 
-            <Route
-              path="/referral"
-              element={
-                <PrivateRoute user={currentUser}>
-                  <ReferralSubmit userId={currentUser?._id} />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/referral"
+                element={
+                  <PrivateRoute user={currentUser}>
+                    <ReferralSubmit userId={currentUser?._id} />
+                  </PrivateRoute>
+                }
+              />
 
-            {/* Fallback Route */}
-            <Route 
-              path="*" 
-              element={
-                <div className="text-center text-white py-20">
-                  <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
-                  <p className="text-xl">The page you're looking for doesn't exist.</p>
-                </div>
-              } 
-            />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+              {/* Fallback Route */}
+              <Route 
+                path="*" 
+                element={
+                  <div className="text-center text-white py-20">
+                    <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
+                    <p className="text-xl">The page you're looking for doesn't exist.</p>
+                  </div>
+                } 
+              />
+            </Routes>
+          </main>
+        </div>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
