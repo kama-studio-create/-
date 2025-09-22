@@ -1,49 +1,41 @@
+// src/App.jsx - Your main app file
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 
-// Pages
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import MarketplacePage from './pages/MarketplacePage';
-import LeagueLeaderboardPage from './pages/LeagueLeaderboardPage';
-import DeckBuilderPage from './pages/DeckBuilderPage';
-import BattlePage from './pages/BattlePage';
-import DashboardPage from './pages/DashboardPage';
-import TournamentPage from './pages/TournamentPage';
-import SpectatorPage from './pages/SpectatorPage';
+// Import your screens
+import DashboardScreen from './screens/DashboardScreen';
+import DeckBuilderScreen from './screens/DeckBuilderScreen';
+import BattleScreen from './screens/BattleScreen';
+import MarketplaceScreen from './screens/MarketplaceScreen';
+import ClanScreen from './screens/ClanScreen';
+import TournamentScreen from './screens/TournamentScreen';
+import LeaderboardScreen from './screens/LeaderboardScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
 // Components
 import Layout from './components/Layout';
 import PrivateRoute from './components/PrivateRoute';
+import Navbar from './components/Navbar';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize user from localStorage or Telegram Web App
+  // Initialize user from Telegram Web App
   useEffect(() => {
     const initializeUser = async () => {
       try {
-        // First check localStorage
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          setCurrentUser(parsedUser);
-          setLoading(false);
-          return;
-        }
-
-        // Then check Telegram Web App
+        // Check Telegram Web App
         if (window.Telegram?.WebApp) {
           const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
           if (tgUser) {
-            // You might want to validate this user with your backend
-            console.log('Telegram user detected:', tgUser);
-            // Optionally auto-login or register the Telegram user
+            // Fetch user data from your backend
+            const response = await fetch(`/api/users/${tgUser.id}`);
+            const userData = await response.json();
+            setCurrentUser(userData);
           }
         }
-
         setLoading(false);
       } catch (error) {
         console.error('Error initializing user:', error);
@@ -53,15 +45,6 @@ function App() {
 
     initializeUser();
   }, []);
-
-  // Update localStorage when user changes
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('user');
-    }
-  }, [currentUser]);
 
   if (loading) {
     return (
@@ -77,28 +60,17 @@ function App() {
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
           <Navbar user={currentUser} setUser={setCurrentUser} />
           
-          <main className="container mx-auto px-4 py-8">
+          <main>
             <Routes>
               {/* Public Routes */}
               <Route 
                 path="/" 
                 element={<DashboardScreen user={currentUser} />} 
               />
+              
               <Route 
-                path="/login" 
-                element={<LoginScreen setUser={setCurrentUser} />} 
-              />
-              <Route 
-                path="/register" 
-                element={<RegisterScreen setUser={setCurrentUser} />} 
-              />
-              <Route 
-                path="/league" 
-                element={<LeagueLeaderboard />} 
-              />
-              <Route 
-                path="/spectate/:matchId" 
-                element={<SpectatorScreen />} 
+                path="/leaderboard" 
+                element={<LeaderboardScreen user={currentUser} />} 
               />
 
               {/* Protected Routes */}
@@ -106,7 +78,7 @@ function App() {
                 path="/deck"
                 element={
                   <PrivateRoute user={currentUser}>
-                    <DeckBuilderScreen userId={currentUser?._id} />
+                    <DeckBuilderScreen user={currentUser} />
                   </PrivateRoute>
                 }
               />
@@ -115,7 +87,7 @@ function App() {
                 path="/battle"
                 element={
                   <PrivateRoute user={currentUser}>
-                    <BattleScreen userId={currentUser?._id} />
+                    <BattleScreen user={currentUser} />
                   </PrivateRoute>
                 }
               />
@@ -124,7 +96,16 @@ function App() {
                 path="/marketplace"
                 element={
                   <PrivateRoute user={currentUser}>
-                    <MarketplaceScreen userId={currentUser?._id} />
+                    <MarketplaceScreen user={currentUser} />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/clan"
+                element={
+                  <PrivateRoute user={currentUser}>
+                    <ClanScreen user={currentUser} />
                   </PrivateRoute>
                 }
               />
@@ -133,16 +114,16 @@ function App() {
                 path="/tournament"
                 element={
                   <PrivateRoute user={currentUser}>
-                    <TournamentScreen userId={currentUser?._id} />
+                    <TournamentScreen user={currentUser} />
                   </PrivateRoute>
                 }
               />
 
               <Route
-                path="/referral"
+                path="/profile"
                 element={
                   <PrivateRoute user={currentUser}>
-                    <ReferralSubmit userId={currentUser?._id} />
+                    <ProfileScreen user={currentUser} />
                   </PrivateRoute>
                 }
               />

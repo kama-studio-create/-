@@ -3,99 +3,49 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// Constants
-const THEME = {
-  HEADER: '#1a1b3a',
-  BACKGROUND: '#0f0f23',
-  TEXT: '#ffffff'
-};
-
-// Initialize Telegram Web App
-const initTelegramWebApp = () => {
-  if (!window.Telegram?.WebApp) {
-    console.warn('Telegram WebApp is not available');
-    return false;
-  }
-
-  try {
+// Telegram WebApp Initialization
+const initializeTelegramWebApp = () => {
+  if (window.Telegram?.WebApp) {
     const webApp = window.Telegram.WebApp;
     
-    // Initialize WebApp
-    webApp.ready();
-    webApp.expand();
-
-    // Set theme colors
-    webApp.setHeaderColor(THEME.HEADER);
-    webApp.setBackgroundColor(THEME.BACKGROUND);
-
-    // Setup main button if needed
-    webApp.MainButton.setParams({
-      text: 'START GAME',
-      color: THEME.HEADER,
-      text_color: THEME.TEXT
-    });
-
-    // Handle closing
-    webApp.onEvent('viewportChanged', () => {
-      // Handle viewport changes
-      console.log('Viewport changed:', webApp.viewportHeight, webApp.viewportWidth);
-    });
-
-    return true;
-  } catch (error) {
-    console.error('Failed to initialize Telegram WebApp:', error);
-    return false;
+    try {
+      webApp.ready();
+      webApp.expand();
+      webApp.setHeaderColor('#1a1b3e');
+      webApp.setBackgroundColor('#0f0f23');
+      webApp.enableClosingConfirmation();
+      
+      console.log('🔗 Telegram WebApp initialized');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to initialize Telegram WebApp:', error);
+      return false;
+    }
   }
+  
+  console.log('ℹ️ Running outside Telegram WebApp');
+  return false;
 };
 
-// Initialize app with error boundary
-const renderApp = () => {
-  try {
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(
-      <React.StrictMode>
-        <App 
-          isTelegramWebApp={initTelegramWebApp()}
-          theme={THEME}
-        />
-      </React.StrictMode>
-    );
-  } catch (error) {
-    console.error('Failed to render app:', error);
-    // Show fallback UI
-    document.body.innerHTML = `
-      <div style="
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        color: ${THEME.TEXT};
-        background: ${THEME.BACKGROUND};
-        text-align: center;
-        padding: 20px;
-      ">
-        <h1>Something went wrong. Please try again later.</h1>
-      </div>
-    `;
-  }
-};
+// Error handling
+window.addEventListener('error', (event) => {
+  console.error('Global error:', event.error);
+});
 
-// Start the app
-renderApp();
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+});
 
-// Hot module replacement support
-if (import.meta.hot) {
-  import.meta.hot.accept();
-}
-
-function App({ isTelegramWebApp, theme }) {
-  return (
-    <div style={{ background: theme.BACKGROUND, color: theme.TEXT }}>
-      {isTelegramWebApp ? (
-        <GameInterface />
-      ) : (
-        <BrowserFallback />
-      )}
-    </div>
+// Render app
+const render = () => {
+  const isTelegramApp = initializeTelegramWebApp();
+  
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(
+    <React.StrictMode>
+      <App isTelegramApp={isTelegramApp} />
+    </React.StrictMode>
   );
-}
+};
+
+render();

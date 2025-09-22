@@ -1,47 +1,57 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getTelegramUser, isTelegramWebApp } from '../services/telegram';
 
 const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export const AuthProvider = ({ children, value }) => {
+  const [user, setUser] = useState(value?.user || null);
+  const [loading, setLoading] = useState(!value);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!value?.user);
+
   const tg = window.Telegram?.WebApp;
 
   useEffect(() => {
-    const initializeWebApp = () => {
-      if (tg) {
-        tg.ready();
-        tg.expand();
-
-        const initData = tg.initDataUnsafe;
-        if (initData?.user) {
-          setUser({
-            id: initData.user.id,
-            username: initData.user.username,
-            firstName: initData.user.first_name,
-            lastName: initData.user.last_name,
-          });
-        }
-      }
+    if (value) {
+      setUser(value.user);
+      setIsAuthenticated(!!value.user);
       setLoading(false);
-    };
+    } else {
+      const initializeAuth = () => {
+        if (isTelegramWebApp()) {
+          const telegramUser = getTelegramUser();
+          if (telegramUser) {
+            setUser({
+              id: telegramUser.id,
+              username: telegramUser.username,
+              firstName: telegramUser.first_name,
+              lastName: telegramUser.last_name,
+            });
+            setIsAuthenticated(true);
+          }
+        }
+        setLoading(false);
+      };
 
-    initializeWebApp();
-  }, []);
+      initializeAuth();
+    }
+  }, [value]);
 
-  const value = {
-    user,
+  const contextValue = {
+    user: value?.user || user,
+    setUser: value?.setUser || setUser,
+    logout: value?.logout || (() => {
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem('token');
+    }),
     loading,
     tg,
-    isAuthenticated: !!user,
+    isAuthenticated: value?.user ? !!value.user : isAuthenticated,
+    isTelegramWebApp: isTelegramWebApp()
   };
 
-  if (loading) {
-    return null; // or a loading spinner component
-  }
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
